@@ -1,0 +1,17 @@
+1) Given single agent, train to find its way to dest, without falling into pit
+2) once trained, take it out of this map, put it in new map and see how well it is doing
+
+3) to increase generalization: we can train it on multiple maps
+Or
+4) to inc generalization: train it with multiple agents on the map. it must avoid collisions
+
+5) to inc generalization even more: have adversarial agents, that chase path-finder agent.
+
+6) Try these expts with DQN, double-DQN, duelling-DQN
+
+7) Compare with baseline cases (DFS etc)
+#this is amenable to DQN as each agent takes only 9 possible steps.
+
+
+DQN code:
+https://github.com/dxyang/DQN_pytorch
