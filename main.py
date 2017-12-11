@@ -1,24 +1,24 @@
 import torch
 import torch.optim as optim
-import argparse
+import argparse, pdb, numpy as np
 
-from model import DQN, Dueling_DQN
+from model import DQN, Dueling_DQN, DQN2
 from learn import dqn_learning, OptimizerSpec
 from schedules import *
-from env import Grid
+from env import Grid, Agent
 # Global Variables
 # Extended data table 1 of nature paper
 BATCH_SIZE = 32
-REPLAY_BUFFER_SIZE = 100000
-FRAME_HISTORY_LEN = 4
-TARGET_UPDATE_FREQ = 10000
+REPLAY_BUFFER_SIZE = 10000
+FRAME_HISTORY_LEN = 1
+TARGET_UPDATE_FREQ = 1000
 GAMMA = 0.99
-LEARNING_FREQ = 4
+LEARNING_FREQ = 2
 LEARNING_RATE = 0.00025
 ALPHA = 0.95
 EPS = 0.01
-EXPLORATION_SCHEDULE = LinearSchedule(1000000, 0.1)
-LEARNING_STARTS = 50000
+EXPLORATION_SCHEDULE = LinearSchedule(100000, 0.1)
+LEARNING_STARTS = 500
 
 def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
 
@@ -31,7 +31,7 @@ def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
         constructor=optim.RMSprop,
         kwargs=dict(lr=LEARNING_RATE, alpha=ALPHA, eps=EPS)
     )
-
+    self_channel = False
     if dueling_dqn:
         dqn_learning(
             env=env,
@@ -48,13 +48,14 @@ def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
             frame_history_len=FRAME_HISTORY_LEN,
             target_update_freq=TARGET_UPDATE_FREQ,
             double_dqn=double_dqn,
-            dueling_dqn=dueling_dqn
+            dueling_dqn=dueling_dqn,
+            self_channel=self_channel
         )
     else:
         dqn_learning(
             env=env,
             env_id=env_id,
-            q_func=DQN,
+            q_func=DQN if self_channel else DQN2,
             optimizer_spec=optimizer,
             exploration=EXPLORATION_SCHEDULE,
             stopping_criterion=stopping_criterion,
@@ -66,9 +67,10 @@ def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
             frame_history_len=FRAME_HISTORY_LEN,
             target_update_freq=TARGET_UPDATE_FREQ,
             double_dqn=double_dqn,
-            dueling_dqn=dueling_dqn
+            dueling_dqn=dueling_dqn,
+            self_channel=self_channel
         )
-    env.close()
+    #env.close()
 
 
 
@@ -99,10 +101,17 @@ def main():
     #env = get_env(task, seed, task.env_id, double_dqn, dueling_dqn)
     env_id = "MyEnv1"
     print("Training on %s, double_dqn %d, dueling_dqn %d" %(env_id, double_dqn, dueling_dqn))
-    env = Grid(100,100, grid_state_fn=lambda x:x.get_grid_img())  #the 3rd argument tells what the state this learner needs from grid
-    agentlist = [DQNSeeker((0,0,0), (255,255,255)) for k in range(50)]
-    g.init_agents(agentlist)
-    agent_learn(env, env_id, num_timesteps=100, double_dqn=double_dqn, dueling_dqn=dueling_dqn)
+    gridmap = np.zeros([100,100])
+    gridmap[40:60, 40:60] = 2
+    gridmap[10:13,20:23] = 1
+    gridmap[80:83,30:33] = 1
+    gridmap[75:78,90:93] = 1
+    env = Grid(100,100, gridmap)#, grid_state_fn=lambda x:x.get_grid_img())  #the 3rd argument tells what the state this learner needs from grid
+    #agentlist = [DQNSeeker((0,0,0), (255,255,255)) for k in range(50)]
+    #env.init_agents(agentlist)
+    agentlist = [Agent((0,0,0), (255,255,255)) for k in range(25)]
+    env.init_agents(agentlist)
+    agent_learn(env, env_id, num_timesteps=1000000, double_dqn=double_dqn, dueling_dqn=dueling_dqn)
 
 
 if __name__ == '__main__':
