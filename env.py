@@ -1,6 +1,9 @@
-import random, numpy as np, matplotlib.pyplot as plt, pdb, torch
+import random, numpy as np, pdb, torch
 from model import DQN, DQN2
 import scipy.ndimage.filters as fi
+import matplotlib
+#matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 
 
@@ -91,7 +94,10 @@ class DQNSeeker(Agent):  #make sure to add a model to the class before usin it.
                 #TODO
                 assert False, 'Do stuff present in else part (make agent a box instead of a point)'
             else:
-                agentchannel[kk[0][0], kk[0][1]] = 255
+                try:
+                    agentchannel[kk[0][0], kk[0][1]] = 255
+                except:
+                    pdb.set_trace()
                 '''
                 distdic = lambda a, b: {0:255, 1:220, 2:175}[np.abs(i) + np.abs(j)]
                 for i in [-1,0,1]:
@@ -114,7 +120,8 @@ class DQNSeeker(Agent):  #make sure to add a model to the class before usin it.
         self_channel[self.loc[0], self.loc[1]] = 255
         tt = np.stack([gridmap, agentchannel, self_channel])
         tt = tt/255.0
-        tmp = torch.autograd.Variable(torch.FloatTensor(tt).unsqueeze(0))
+        #pdb.set_trace()
+        tmp = torch.autograd.Variable(torch.FloatTensor(tt).unsqueeze(0)).type(dtype)
         preds = self.model(tmp).cpu().data.numpy()[0]
         actn = np.argmax(preds)
         
@@ -129,7 +136,8 @@ agent_class_to_num = {ConstantSeeker:0, RandomSeeker:1, DedicatedSeeker:2, DQNSe
 
 action_to_delta = {k:np.array([k//3, k%3])-1 for k in range(9)} #{0: array([-1, -1]), 1: array([-1,  0]), 2: array([-1,  1]), 3: array([ 0, -1]), 4: array([0, 0]), 5: array([0, 1]), 6: array([ 1, -1]), 7: array([1, 0]), 8: array([1, 1])}
 
-
+clamp_fn = lambda x, mn, mx : max(mn, min(x, mx))
+#clamp_fn = lambda x, mn, mx : x%mx #toroidal world
 
 class Grid(object):
     #cell type specs: 0: normal 1: destination, 2: pit
@@ -189,9 +197,13 @@ class Grid(object):
             self._grid_img = disp_img
         assert self._grid_img is not None
         return self._grid_img
-    def display(self):
+    def display(self, saveloc=None):
         disp_img = self.get_grid_img()
-        plt.imshow(disp_img); plt.show()
+        plt.imshow(disp_img); 
+        if saveloc is None:
+            plt.show()
+        else:
+            plt.savefig(saveloc)
     def init_grid(self):
         num_destinations = random.choice([1,2,3,4,5])
         dest_dim = int(np.ceil(self.w/50.))
@@ -219,11 +231,16 @@ class Grid(object):
         for a in self.agentlist:
             print(a.loc)
     def clamp_loc(self):
-        clamp_fn = lambda x, mn, mx : max(mn, min(x, mx))
-        clamp_fn = lambda x, mn, mx : x%mx #toroidal world
-        for a in self.agentlist:
+        print('in clamploc')
+        
+        for ii, a in enumerate(self.agentlist):
+            ff = 0
+            if a.loc[0]==100 or a.loc[1]==100:
+                print('100 border', a.loc); ff=1
             a.loc[0] = clamp_fn(a.loc[0], 0, self.w-1)
             a.loc[1] = clamp_fn(a.loc[1], 0, self.h-1)
+            if ff==1:
+                print a.loc, 'dfdf'
     def grid_state(self):
         if self.grid_state_fn is None:
             return {'gridmap':self.gridmap, 'agentinfo':[(k.loc, k.__class__) for k in self.agentlist], 'grid_img':self.get_grid_img()}
@@ -231,6 +248,12 @@ class Grid(object):
             return self.grid_state_fn(self)
     def step(self, actionlist=None):
         #move agents
+
+
+        #for idxx, aggg in enumerate(self.agentlist):
+        #    if aggg.loc[0]>=100 or aggg.loc[1]>=100:
+        #        print idxx, aggg.loc
+        #        pdb.set_trace()
         if actionlist is not None:
             assert len(actionlist) == len(self.agentlist)
         else:
@@ -238,13 +261,30 @@ class Grid(object):
         for idx, agent in enumerate(self.agentlist):
             if agent.alive:
                 if actionlist is None:
+                    #print agent.loc
+                    if agent.loc[0] >= 100 or agent.loc[1] >= 100:
+                        pdb.set_trace()
+                    print idx, "dfddfdfd"
                     delta = agent.step(grid_state)
                 else:
                     delta = action_to_delta[actionlist[idx]]
                 agent.loc += delta
+                agent.loc[0] = clamp_fn(agent.loc[0], 0, self.w-1)
+                agent.loc[1] = clamp_fn(agent.loc[1], 0, self.h-1)
+                
+                #if agent.loc[0] >= 100 or agent.loc[1] >= 100:
+                #    pdb.set_trace()
 
-
+        #for aggg in self.agentlist:
+        #    if aggg.loc[0]>=100 or aggg.loc[1]>=100:
+        #        pdb.set_trace()
+        #print("before clamp_loc")
         self.clamp_loc()
+        #print("after clamp_loc")
+        #for aggg in self.agentlist:
+        #    if aggg.loc[0]>=100 or aggg.loc[1]>=100:
+        #        pdb.set_trace()
+        #print [ag.loc for ag in self.agentlist]
         chasers_dict = {}
         seekers_dict = {}
         for idx, agent in enumerate(self.agentlist):
@@ -318,6 +358,7 @@ class Grid(object):
         for idx, ag in enumerate(self.agentlist):
             info = chasers_dict.get(idx, {'pit':False, 'crash':False}) if ag.__class__ == Chaser else seekers_dict.get(idx, {'pit':False, 'crash':False})
             status = ag.alive
+            '''
             if not ag.alive:
                 if not info['pit'] and not info['crash']:
                     reward[idx] = 1000  #success
@@ -326,6 +367,36 @@ class Grid(object):
             else:
                 reward[idx] = 0
             #TODO: a better reward calc is to reward based on dist from destination or penalize based on dist from other agents and pits
+            '''
+
+            if not ag.alive:
+                if not info['pit'] and not info['crash']:
+                    reward[idx] = 10000  #success
+                else:
+                    reward[idx] = -1000 #death by crashing or pit
+            rewardrad = 5
+            #punish closeness to pit
+            neighbourhood = self.gridmap[ag.loc[0]-rewardrad:ag.loc[0]+rewardrad+1, ag.loc[1]-rewardrad:ag.loc[1]+rewardrad+1]
+            xx, yy= np.where(neighbourhood == 2)
+            xx -= rewardrad
+            yy -= rewardrad
+            rw = sum(-100*np.exp(-(xx**2 + yy**2)))
+            reward[idx] += rw
+            #reward closeness to destination for seekers
+            if ag.__class__ is not Chaser:
+                neighbourhood = self.gridmap[ag.loc[0]-rewardrad:ag.loc[0]+rewardrad+1, ag.loc[1]-rewardrad:ag.loc[1]+rewardrad+1]
+                #pdb.set_trace()
+                #np.sum(neighbourhood == 1)
+                xx, yy= np.where(neighbourhood == 1)
+                xx -= rewardrad
+                yy -= rewardrad
+                rw = sum(1000*np.exp(-(xx**2 + yy**2)/10))
+                reward[idx] += rw
+                #punish closeness to other agents
+                for otherag in self.agentlist:
+                    d1 = abs(otherag.loc[0]-ag.loc[0]); d2 = abs(otherag.loc[1]-ag.loc[1])
+                    if d1<rewardrad and d2<rewardrad:
+                        reward[idx] += -100*np.exp(-(d1**2+d2**2))
 
         self.num_steps += 1
 
@@ -368,24 +439,36 @@ if __name__ == '__main__':
         pdb.set_trace()
     else:
         gridmap = np.zeros([100,100])
-        gridmap[40:60, 40:60] = 2
-        gridmap[10:13,20:23] = 1
-        gridmap[80:83,30:33] = 1
-        gridmap[75:78,90:93] = 1
+        if False:
+            gridmap[40:60, 40:60] = 2
+            gridmap[10:13,20:23] = 1
+            gridmap[80:83,30:33] = 1
+            gridmap[75:78,90:93] = 1
+            dump = './dump_train/'
+        else:
+            gridmap[10:20, 10:20] = 2
+            gridmap[80:90, 80:90] = 2
+            gridmap[10:20, 80:90] = 2
+            gridmap[80:90, 10:20] = 2
+            gridmap[50:53,20:23] = 1
+            gridmap[20:23,30:33] = 1
+            gridmap[75:78,90:93] = 1
+            dump = './dump_test/'
         g = Grid(100,100, gridmap)
         g.display()
         agentlist = [DQNSeeker((0,0,0), (255,255,255)) for k in range(50)]
         #model = DQN(3, 9).type(dtype)
         #model.load_state_dict(torch.load('/home/sayantan/Desktop/path_planner/path_planner/models/MyEnv1__5000_Mon_Dec_11_13:28:01_2017.model'))
         model = DQN2(2, 9).type(dtype)
-        model.load_state_dict(torch.load('/home/sayantan/Desktop/path_planner/path_planner/models/MyEnv1__15000_Mon_Dec_11_14:34:00_2017.model'))
+        model.load_state_dict(torch.load('./models/MyEnv1__355000_Mon_Dec_11_23:43:22_2017.model'))
         for ag in agentlist:
             ag.model = model
         g.init_agents(agentlist)
         g.display()
         for k in range(100):
             g.step()
-            g.display()
+            print("ONE STEP DONE")
+            g.display(dump+str(k)+'.jpg')
             #g.get_agent_locs()
             #print('xxxx')
         agl = Agentlist(agentlist, None)

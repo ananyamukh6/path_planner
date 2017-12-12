@@ -55,6 +55,7 @@ class DQN2(nn.Module):
         aglocstup = [[int(loc/100), loc%100] for loc in aglocs]
         assert sum([loc_[i,k[0],k[1]] for i,k in enumerate(aglocstup)]) == loc_.shape[0]  #all should be '1'
         aglocstup = np.array(aglocstup)
+        #print aglocstup
         #aglocstup = torch.FloatTensor(aglocstup)
         aglocstup = Variable(torch.from_numpy(aglocstup)).type(dtype)
         #pdb.set_trace()
@@ -65,6 +66,8 @@ class DQN2(nn.Module):
         x = x.view(x.size(0), -1)  #4096
 
         x = self.relu(self.fc1(x))
+        #x_ = x
+        #pdb.set_trace()
         conc = torch.cat([x,aglocstup], 1)
         x = self.relu(self.fc2(conc))
         x = self.fc3(x)
@@ -103,9 +106,3 @@ class Dueling_DQN(nn.Module):
 
         x = val + adv - adv.mean(1).unsqueeze(1).expand(x.size(0), self.num_actions)
         return x
-
-
-
-
-
-

@@ -176,8 +176,8 @@ def dqn_learning(env,
         #pdb.set_trace()
         obs, reward, done = env.step(action_list)
         rewardslist += [reward]
-        #pdb.set_trace()
-        print t, learning_starts, np.mean(reward), threshold, self_channel
+        if t%20 == 0:
+            print t, learning_starts, np.mean(reward), threshold, self_channel
 
         # clipping the reward, noted in nature paper
         reward = np.clip(reward, -1.0, 1.0)
@@ -216,7 +216,8 @@ def dqn_learning(env,
             q_values = Q(obs_t)
             q_s_a = q_values.gather(1, act_t.unsqueeze(1))
             q_s_a = q_s_a.squeeze()
-            print(torch.max(q_values, 1)[1].cpu().data.numpy().squeeze().tolist())
+            if t%20==0:
+                print(torch.max(q_values, 1)[1].cpu().data.numpy().squeeze().tolist())
 
             if (double_dqn):
                 # ---------------
