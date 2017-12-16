@@ -1,3 +1,50 @@
+
+Conversation opened. 1 unread message.
+
+
+Skip to content
+Using Gmail with screen readers
+Search
+
+
+
+Gmail
+COMPOSE
+Labels
+Inbox (22)
+Starred
+Sent Mail
+Drafts (14)
+multi-forward
+More 
+Hangouts
+
+ 
+ 
+ 
+  More 
+1 of 3,874  
+ 
+Print all In new window
+(no subject) 
+Inbox
+x 
+
+Sayantan Sarkar
+Attachments6:58 PM (0 minutes ago)
+
+to me 
+3 Attachments 
+ 
+	
+Click here to Reply or Forward
+5.04 GB (33%) of 15 GB used
+Manage
+Terms - Privacy
+Last account activity: 0 minutes ago
+Open in 1 other location  Details
+
+
 import random, numpy as np, pdb, torch
 from model import DQN, DQN2
 import scipy.ndimage.filters as fi
@@ -140,6 +187,7 @@ clamp_fn = lambda x, mn, mx : max(mn, min(x, mx))
 #clamp_fn = lambda x, mn, mx : x%mx #toroidal world
 
 class Grid(object):
+    #TODO: best keep w==h., probable bugs if w!=h
     #cell type specs: 0: normal 1: destination, 2: pit
     def __init__(self, w, h, gridmap=None, grid_state_fn=None):
         self.w = w
@@ -155,8 +203,28 @@ class Grid(object):
         self.grid_state_fn = grid_state_fn
     def get_total_steps(self):
         return self.num_steps
-    def reset(self):
+    def reset(self, hard=True):
         self.agentlist = []
+
+        num_pits = random.choice(range(1,5))  #1,2,3 or 4 pits
+        gridmap = np.zeros([100,100])
+        for pitid in range(num_pits):
+            pit_rad = random.choice(range(5,10,1))
+            pit_pos = [random.choice(range(100)), random.choice(range(100))]
+            gridmap[clamp_fn(pit_pos[0]-pit_rad, 0, self.w-1):clamp_fn(pit_pos[0]+pit_rad+1, 0, self.w-1), clamp_fn(pit_pos[1]-pit_rad, 0, self.h-1):clamp_fn(pit_pos[1]+pit_rad+1, 0, self.h-1)] = 2
+
+        num_dests = random.choice(range(3,10))
+        dest_rad = 1
+        for destid in range(num_dests):
+            while(True):
+                dest_pos = [random.choice(range(100)), random.choice(range(100))]
+                if gridmap[dest_pos[0], dest_pos[1]] != 2:
+                    break
+            gridmap[clamp_fn(dest_pos[0]-dest_rad, 0, self.w-1):clamp_fn(dest_pos[0]+dest_rad+1, 0, self.w-1), clamp_fn(dest_pos[1]-dest_rad, 0, self.h-1):clamp_fn(dest_pos[1]+dest_rad+1, 0, self.h-1)] = 1
+        self.gridmap = gridmap
+        agentlist = [Agent((0,0,0), (255,255,255)) for k in range(25)]
+        self.init_agents(agentlist)
+
         self._grid_img = None
         #self.num_steps = 0
         return self.get_obs_for_qlearning()
@@ -167,7 +235,7 @@ class Grid(object):
         gridmap = np.copy(statedict['gridmap'])
         gridmap[gridmap==0] = 128
         gridmap[gridmap==1] = 255
-        gridmap[gridmap==1] = 0
+        gridmap[gridmap==2] = 0
         agentchannel = 128*np.ones(gridmap.shape)
         for kk in statedict['agentinfo']:
             if kk[1] == Chaser:
@@ -204,7 +272,7 @@ class Grid(object):
             plt.show()
         else:
             plt.savefig(saveloc)
-    def init_grid(self):
+    def init_grid(self):  #redundant now, see modification in reset() function that generates a random grid setting
         num_destinations = random.choice([1,2,3,4,5])
         dest_dim = int(np.ceil(self.w/50.))
         gridmap = np.zeros([self.w,self.h])
@@ -231,8 +299,6 @@ class Grid(object):
         for a in self.agentlist:
             print(a.loc)
     def clamp_loc(self):
-        print('in clamploc')
-        
         for ii, a in enumerate(self.agentlist):
             ff = 0
             if a.loc[0]==100 or a.loc[1]==100:
@@ -288,13 +354,13 @@ class Grid(object):
         chasers_dict = {}
         seekers_dict = {}
         for idx, agent in enumerate(self.agentlist):
-            if self.gridmap[agent.loc[0], agent.loc[1]] == 1:
+            if self.gridmap[agent.loc[0], agent.loc[1]] == 2:
                 agent.alive = False  #agent fell into a pit
                 if agent.__class__ == Chaser:
                     chasers_dict[idx] = {'pit':True, 'crash':False}
                 else:
                     seekers_dict[idx] = {'pit':True, 'crash':False}
-            if self.gridmap[agent.loc[0], agent.loc[1]] == 2:
+            if self.gridmap[agent.loc[0], agent.loc[1]] == 1:
                 agent.alive = False #agent reached destination, so ending its lifecycle
                 if agent.__class__ == Chaser:
                     #chasers should not be in destinations. its a pit for them
@@ -371,16 +437,16 @@ class Grid(object):
 
             if not ag.alive:
                 if not info['pit'] and not info['crash']:
-                    reward[idx] = 10000  #success
+                    reward[idx] = 5  #success
                 else:
-                    reward[idx] = -1000 #death by crashing or pit
+                    reward[idx] = -2.5 #death by crashing or pit
             rewardrad = 5
             #punish closeness to pit
             neighbourhood = self.gridmap[ag.loc[0]-rewardrad:ag.loc[0]+rewardrad+1, ag.loc[1]-rewardrad:ag.loc[1]+rewardrad+1]
             xx, yy= np.where(neighbourhood == 2)
             xx -= rewardrad
             yy -= rewardrad
-            rw = sum(-100*np.exp(-(xx**2 + yy**2)))
+            rw = sum(-0.51*np.exp(-(xx**2 + yy**2)))
             reward[idx] += rw
             #reward closeness to destination for seekers
             if ag.__class__ is not Chaser:
@@ -390,13 +456,14 @@ class Grid(object):
                 xx, yy= np.where(neighbourhood == 1)
                 xx -= rewardrad
                 yy -= rewardrad
-                rw = sum(1000*np.exp(-(xx**2 + yy**2)/10))
+                rw = sum(1*np.exp(-(xx**2 + yy**2)/10))
                 reward[idx] += rw
                 #punish closeness to other agents
-                for otherag in self.agentlist:
-                    d1 = abs(otherag.loc[0]-ag.loc[0]); d2 = abs(otherag.loc[1]-ag.loc[1])
-                    if d1<rewardrad and d2<rewardrad:
-                        reward[idx] += -100*np.exp(-(d1**2+d2**2))
+                for otheridx, otherag in enumerate(self.agentlist):
+                    if otheridx != idx:
+                        d1 = abs(otherag.loc[0]-ag.loc[0]); d2 = abs(otherag.loc[1]-ag.loc[1])
+                        if d1<rewardrad and d2<rewardrad:
+                            reward[idx] += -0.49*np.exp(-(d1**2+d2**2))
 
         self.num_steps += 1
 
@@ -460,7 +527,9 @@ if __name__ == '__main__':
         #model = DQN(3, 9).type(dtype)
         #model.load_state_dict(torch.load('/home/sayantan/Desktop/path_planner/path_planner/models/MyEnv1__5000_Mon_Dec_11_13:28:01_2017.model'))
         model = DQN2(2, 9).type(dtype)
-        model.load_state_dict(torch.load('./models/MyEnv1__355000_Mon_Dec_11_23:43:22_2017.model'))
+        #model.load_state_dict(torch.load('./models/MyEnv1__355000_Mon_Dec_11_23:43:22_2017.model'))
+        #model.load_state_dict(torch.load('./models/MyEnv1_varyenv__990000_Fri_Dec_15_09:55:56_2017.model'))
+        model.load_state_dict(torch.load('./models/MyEnv1_varyenv__580000_Fri_Dec_15_15:06:54_2017.model'))
         for ag in agentlist:
             ag.model = model
         g.init_agents(agentlist)
@@ -473,3 +542,6 @@ if __name__ == '__main__':
             #print('xxxx')
         agl = Agentlist(agentlist, None)
         pdb.set_trace()
+env.py
+Open with Drive Notepad
+Displaying env.py.
