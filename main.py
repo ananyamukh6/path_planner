@@ -19,8 +19,9 @@ ALPHA = 0.95
 EPS = 0.01
 EXPLORATION_SCHEDULE = LinearSchedule(100000, 0.1)
 LEARNING_STARTS = 500
+HARD_RESET_FREQ = 2500
 
-def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
+def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn, varyenv):
 
     def stopping_criterion(env, t):
         # notice that here t is the number of steps of the wrapped env,
@@ -49,7 +50,9 @@ def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
             target_update_freq=TARGET_UPDATE_FREQ,
             double_dqn=double_dqn,
             dueling_dqn=dueling_dqn,
-            self_channel=self_channel
+            self_channel=self_channel,
+            varyenv=varyenv,
+            hard_reset_freq=HARD_RESET_FREQ
         )
     else:
         dqn_learning(
@@ -68,7 +71,9 @@ def agent_learn(env, env_id, num_timesteps, double_dqn, dueling_dqn):
             target_update_freq=TARGET_UPDATE_FREQ,
             double_dqn=double_dqn,
             dueling_dqn=dueling_dqn,
-            self_channel=self_channel
+            self_channel=self_channel,
+            varyenv=varyenv,
+            hard_reset_freq=HARD_RESET_FREQ
         )
     #env.close()
 
@@ -99,7 +104,7 @@ def main():
     double_dqn = (args.double_dqn == 1)
     dueling_dqn = (args.dueling_dqn == 1)
     #env = get_env(task, seed, task.env_id, double_dqn, dueling_dqn)
-    env_id = "MyEnv1"
+    env_id = "MyEnv1_varyenv"
     print("Training on %s, double_dqn %d, dueling_dqn %d" %(env_id, double_dqn, dueling_dqn))
     gridmap = np.zeros([100,100])
     gridmap[40:60, 40:60] = 2
@@ -111,7 +116,7 @@ def main():
     #env.init_agents(agentlist)
     agentlist = [Agent((0,0,0), (255,255,255)) for k in range(25)]
     env.init_agents(agentlist)
-    agent_learn(env, env_id, num_timesteps=1000000, double_dqn=double_dqn, dueling_dqn=dueling_dqn)
+    agent_learn(env, env_id, num_timesteps=1000000, double_dqn=double_dqn, dueling_dqn=dueling_dqn, varyenv=True)
 
 
 if __name__ == '__main__':
