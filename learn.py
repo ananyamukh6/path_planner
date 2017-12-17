@@ -66,7 +66,9 @@ def dqn_learning(env,
           target_update_freq=10000,
           double_dqn=False,
           dueling_dqn=False,
-          self_channel=True):
+          self_channel=True,
+          varyenv=False, 
+          hard_reset_freq=5000):
     """Run Deep Q-learning algorithm.
     You can specify your own convnet using q_func.
     All schedules are w.r.t. total number of steps taken in the environment.
@@ -138,7 +140,7 @@ def dqn_learning(env,
     best_mean_episode_reward = -float('inf')
     last_obs = env.get_obs_for_qlearning()
     LOG_EVERY_N_STEPS = 1000
-    SAVE_MODEL_EVERY_N_STEPS = 5000
+    SAVE_MODEL_EVERY_N_STEPS = 10000
 
     rewardslist = []
     for t in itertools.count():
@@ -176,21 +178,32 @@ def dqn_learning(env,
         #pdb.set_trace()
         obs, reward, done = env.step(action_list)
         rewardslist += [reward]
-        if t%20 == 0:
-            print t, learning_starts, np.mean(reward), threshold, self_channel
+        #if t%50 == 0:
+        #    print t, learning_starts, np.mean(reward), threshold, self_channel
 
+        #pdb.set_trace()
         # clipping the reward, noted in nature paper
-        reward = np.clip(reward, -1.0, 1.0)
+        ###reward = np.clip(reward, -1.0, 1.0)
+        if t%50 == 0:
+            print t, learning_starts, np.mean(reward), threshold
+            print reward
+            #pdb.set_trace()
 
         # store effect of action
         for idx, last_st_idx in enumerate(last_stored_frame_idx):
             replay_buffer_list[idx].store_effect(last_st_idx, action_list[idx], reward[idx], done[idx])
 
         # reset env if reached episode boundary
+        #soft reset
         for idx, dd in enumerate(done):
             if dd:
                 currag = env.agentlist[idx]
                 env.agentlist[idx] = currag.__class__((0,0,0), (255,255,255), (random.randint(0,img_h-1),random.randint(0,img_w-1)))
+
+        if varyenv and t%hard_reset_freq==0:
+            obs = env.reset()
+            print("Hard reset")
+            #pdb.set_trace()
 
         # update last_obs
         last_obs = obs
@@ -216,7 +229,7 @@ def dqn_learning(env,
             q_values = Q(obs_t)
             q_s_a = q_values.gather(1, act_t.unsqueeze(1))
             q_s_a = q_s_a.squeeze()
-            if t%20==0:
+            if t%50==0:
                 print(torch.max(q_values, 1)[1].cpu().data.numpy().squeeze().tolist())
 
             if (double_dqn):
@@ -259,7 +272,8 @@ def dqn_learning(env,
                 error = rew_t + gamma * q_s_a_prime - q_s_a
 
             # clip the error and flip
-            clipped_error = -1.0 * error.clamp(-1, 1)
+            #clipped_error = -1.0 * error.clamp(-1, 1)
+            clipped_error = -1.0 * error
 
             # backwards pass
             optimizer.zero_grad()
